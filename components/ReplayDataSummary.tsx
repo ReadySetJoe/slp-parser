@@ -25,7 +25,7 @@ ChartJS.register(
   Legend
 );
 
-type StatKey = keyof ReplayData["stats"]["overall"][0];
+type StatKey = Exclude<keyof ReplayData["stats"]["overall"][0], "playerIndex">;
 
 // Expanded axis labels with more descriptive information
 const axisKeyToLabel = {
@@ -255,13 +255,13 @@ const ReplayDataSummary = ({
       x: {
         title: {
           display: true,
-          text: axisKeyToLabel[xAxis],
+          text: xAxis ? axisKeyToLabel[xAxis] : "X Axis",
         },
       },
       y: {
         title: {
           display: true,
-          text: axisKeyToLabel[yAxis],
+          text: yAxis ? axisKeyToLabel[yAxis] : "Y Axis",
         },
       },
     },
@@ -280,8 +280,7 @@ const ReplayDataSummary = ({
             const label = context.dataset.label || "";
             const xValue = context.parsed.x.toFixed(2);
             const yValue = context.parsed.y.toFixed(2);
-            const xAxis = context.chart.options.scales?.x?.title?.text || "";
-            const yAxis = context.chart.options.scales?.y?.title?.text || "";
+
             return [
               `${label}: (${xValue}, ${yValue})`,
               `${xAxis}: ${xValue}`,
@@ -353,7 +352,7 @@ const ReplayDataSummary = ({
                   .filter(k => k in axisKeyToLabel)
                   .map(key => (
                     <option key={key} value={key}>
-                      {axisKeyToLabel[key]}
+                      {axisKeyToLabel[key as StatKey]}
                     </option>
                   ))}
             </select>
@@ -374,7 +373,7 @@ const ReplayDataSummary = ({
                   .filter(k => k in axisKeyToLabel)
                   .map(key => (
                     <option key={key} value={key}>
-                      {axisKeyToLabel[key]}
+                      {axisKeyToLabel[key as StatKey]}
                     </option>
                   ))}
             </select>
