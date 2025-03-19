@@ -32,7 +32,6 @@ const axisKeyToLabel = {
   inputsPerMinute: "Inputs Per Minute",
   neutralWinRatio: "Neutral Win Ratio",
   openingsPerKill: "Openings Per Kill",
-  playerIndex: "Player Index",
   successfulConversions: "Successful Conversions",
   totalDamage: "Total Damage",
 };
