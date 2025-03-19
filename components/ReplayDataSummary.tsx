@@ -236,8 +236,8 @@ const ReplayDataSummary = ({
             >
               <option value="">Select X-Axis</option>
               {replayDataList.length > 0 &&
-                Object.keys(replayDataList[0].stats.overall[0])
-                  .filter(k => !!axisKeyToLabel[k])
+                (Object.keys(replayDataList[0].stats.overall[0]) as StatKey[])
+                  .filter(k => k in axisKeyToLabel)
                   .map(key => (
                     <option key={key} value={key}>
                       {axisKeyToLabel[key]}
@@ -258,7 +258,7 @@ const ReplayDataSummary = ({
               <option value="">Select Y-Axis</option>
               {replayDataList.length > 0 &&
                 Object.keys(replayDataList[0].stats.overall[0])
-                  .filter(k => !!axisKeyToLabel[k])
+                  .filter(k => k in axisKeyToLabel)
                   .map(key => (
                     <option key={key} value={key}>
                       {axisKeyToLabel[key]}
