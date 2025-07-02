@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { zipSync } from "fflate";
 import Head from "next/head";
 import Image from "next/image";
 import FileUpload from "@/components/FileUpload";
@@ -70,6 +71,23 @@ export default function Home() {
         }));
       }
       setReplayDataList((prev) => [...prev, ...newReplayDataList]);
+      // set the selected player to whichever player is most frequent
+      const playerCounts: Record<string, number> = {};
+      newReplayDataList.forEach((replay) => {
+        const players = [
+          replay.metadata.players[0],
+          replay.metadata.players[1],
+        ];
+        players.forEach((player) => {
+          playerCounts[player.names.code] =
+            (playerCounts[player.names.code] || 0) + 1;
+        });
+      });
+      const mostFrequentPlayer = Object.entries(playerCounts).reduce(
+        (max, curr) => (curr[1] > max[1] ? curr : max),
+        ["", 0]
+      )[0];
+      setSelectedPlayer(mostFrequentPlayer || null);
       if (errorFiles.length > 0) {
         setError(
           `Failed to parse the following file(s): ${errorFiles.join(", ")}`
@@ -86,6 +104,16 @@ export default function Home() {
     }
   };
 
+  // Helper: read a Blob as ArrayBuffer
+  const readBlobAsArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(blob);
+    });
+  };
+
   const handleLoadSampleData = async () => {
     setLoading(true);
     setError("");
@@ -98,12 +126,23 @@ export default function Home() {
         const res = await fetch(`/assets/slp-demo-data/${fileName}`);
         if (!res.ok) throw new Error(`Failed to fetch ${fileName}`);
         const blob = await res.blob();
-        const file = new File([blob], fileName, {
-          type: "application/octet-stream",
-        });
+
+        // Zip the file (mimic FileUpload handleSubmit logic)
+        const buf = await readBlobAsArrayBuffer(blob);
+        const zipObj: Record<string, Uint8Array> = {
+          [fileName]: new Uint8Array(buf),
+        };
+        const zipped = zipSync(zipObj, { level: 6 });
+        const zippedFile = new File(
+          [zipped],
+          fileName.replace(/\.slp$/i, ".zip"),
+          {
+            type: "application/zip",
+          }
+        );
 
         const formData = new FormData();
-        formData.append("replayFile", file);
+        formData.append("replayFile", zippedFile);
 
         const response = await fetch("/api/parse-replay", {
           method: "POST",
@@ -111,7 +150,9 @@ export default function Home() {
         });
         if (!response.ok) throw new Error(`Failed to parse ${fileName}`);
         const data = await response.json();
-        newReplayDataList.push(data);
+
+        console.log("data", data);
+        newReplayDataList.push(data.results[0].parsed);
         successCount++;
         setProgress((prev) => ({ ...prev, current: successCount }));
       }
