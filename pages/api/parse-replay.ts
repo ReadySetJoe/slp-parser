@@ -57,7 +57,12 @@ export default async function handler(
           const results = [];
           for (const [filename, data] of Object.entries(unzipped)) {
             if (!filename.endsWith(".slp")) continue;
-            const tempPath = path.join(process.cwd(), "tmp_" + filename);
+            let tempPath;
+            if (process.env.APP_ENV === "development") {
+              tempPath = path.join(process.cwd(), "tmp_" + filename);
+            } else {
+              tempPath = path.join("/tmp", "tmp_" + filename);
+            }
             fs.writeFileSync(tempPath, data);
             try {
               const parsed = await parseSlippiReplay(tempPath);
