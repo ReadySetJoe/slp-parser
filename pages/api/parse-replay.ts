@@ -2,6 +2,8 @@ import { IncomingForm } from "formidable";
 import { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs";
 import { parseSlippiReplay } from "@/lib/slippiParser";
+import { unzipFile } from "@/lib/unzip";
+import path from "path";
 
 export const config = {
   api: {
@@ -23,7 +25,7 @@ export default async function handler(
       maxFileSize: 10 * 1024 * 1024, // 10MB limit
     });
 
-    return new Promise<void>(resolve => {
+    return new Promise<void>((resolve) => {
       form.parse(req, async (err, fields, files) => {
         if (err) {
           console.error("Form parsing error:", err);
@@ -38,25 +40,43 @@ export default async function handler(
           }
           const file = files.replayFile[0];
 
+          // Accept .zip file
           if (
             !file.originalFilename ||
-            !file.originalFilename.endsWith(".slp")
+            !file.originalFilename.endsWith(".zip")
           ) {
-            res.status(400).json({ message: "Only .slp files are accepted" });
+            res.status(400).json({ message: "Only .zip files are accepted" });
             return resolve();
           }
 
-          const tempPath = file.filepath;
-          const replayData = await parseSlippiReplay(tempPath);
+          // Read zip file buffer
+          const zipBuffer = fs.readFileSync(file.filepath);
+          const unzipped = unzipFile(zipBuffer);
 
-          // Clean up temp file
-          try {
-            fs.unlinkSync(tempPath);
-          } catch (unlinkErr) {
-            console.error("Error removing temp file:", unlinkErr);
+          // For each .slp file in the zip, write to temp, parse, then delete
+          const results = [];
+          for (const [filename, data] of Object.entries(unzipped)) {
+            if (!filename.endsWith(".slp")) continue;
+            const tempPath = path.join(process.cwd(), "tmp_" + filename);
+            fs.writeFileSync(tempPath, data);
+            try {
+              const parsed = await parseSlippiReplay(tempPath);
+              results.push({ filename, parsed });
+            } catch (err) {
+              console.error(`Error parsing ${filename}:`, err);
+              results.push({ filename, error: "Failed to parse" });
+            }
+            try {
+              fs.unlinkSync(tempPath);
+            } catch {}
           }
 
-          res.status(200).json(replayData);
+          // Clean up zip temp file
+          try {
+            fs.unlinkSync(file.filepath);
+          } catch {}
+
+          res.status(200).json({ results });
           return resolve();
         } catch (parseErr) {
           console.error("Error parsing replay:", parseErr);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Head from "next/head";
+import Image from "next/image";
 import FileUpload from "@/components/FileUpload";
 import ReplayDetails, { ReplayData } from "@/components/ReplayDetails";
 import ReplayDataSummary from "@/components/ReplayDataSummary";
@@ -36,6 +37,7 @@ export default function Home() {
     setProgress({ current: 0, total: files.length });
     const newReplayDataList: ReplayData[] = [];
     let successCount = 0;
+    const errorFiles: string[] = [];
     try {
       for (const file of files) {
         const formData = new FormData();
@@ -45,14 +47,34 @@ export default function Home() {
           body: formData,
         });
         if (!response.ok) {
-          throw new Error(`Failed to parse replay file: ${file.name}`);
+          errorFiles.push(file.name);
+          setProgress((prev) => ({ ...prev, current: successCount + 1 }));
+          continue;
         }
         const data = await response.json();
-        newReplayDataList.push(data);
-        successCount++;
-        setProgress((prev) => ({ ...prev, current: successCount }));
+        if (data && Array.isArray(data.results)) {
+          for (const result of data.results) {
+            if (result.parsed) {
+              newReplayDataList.push(result.parsed);
+              successCount++;
+            } else {
+              errorFiles.push(result.filename);
+            }
+          }
+        } else {
+          errorFiles.push(file.name);
+        }
+        setProgress((prev) => ({
+          ...prev,
+          current: successCount + errorFiles.length,
+        }));
       }
       setReplayDataList((prev) => [...prev, ...newReplayDataList]);
+      if (errorFiles.length > 0) {
+        setError(
+          `Failed to parse the following file(s): ${errorFiles.join(", ")}`
+        );
+      }
     } catch (err) {
       console.error("Error parsing replay files:", err);
       setError(
@@ -309,18 +331,29 @@ export default function Home() {
       </main>
 
       <footer className="w-full text-center py-4 text-gray-500 text-sm">
-        <p>Slippi Replay Analyzer - Analyze, improve, repeat.</p>
-        <p className="mt-1">
-          Created by Joe Powers:{" "}
-          <a
-            href="https://github.com/ReadySetJoe/slp-parser"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline"
-          >
-            GitHub Repo
-          </a>
-        </p>
+        <div className="flex flex-col items-center justify-center">
+          <span>
+            <Image
+              src="/favicon.ico"
+              alt="favicon"
+              width={20}
+              height={20}
+              className="w-5 h-5 inline-block align-middle mr-2"
+            />
+            Slippi Replay Analyzer - Analyze, improve, repeat.
+          </span>
+          <p className="mt-1">
+            Created by Joe Powers:{" "}
+            <a
+              href="https://github.com/ReadySetJoe/slp-parser"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              GitHub Repo
+            </a>
+          </p>
+        </div>
       </footer>
     </div>
   );

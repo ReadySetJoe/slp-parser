@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { zipSync } from "fflate";
 
 const MAX_FILES = 100;
 interface FileUploadProps {
@@ -78,9 +79,33 @@ export default function FileUpload({
     }
   };
 
-  const handleSubmit = () => {
+  // Helper: read a File as ArrayBuffer
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Zip each selected file individually and send as an array of zip files
+  const handleSubmit = async () => {
     if (selectedFiles.length > 0) {
-      onFileUpload(selectedFiles);
+      const zippedFiles = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const buf = await readFileAsArrayBuffer(file);
+          // Each zip contains only one file
+          const zipObj: Record<string, Uint8Array> = {
+            [file.name]: new Uint8Array(buf),
+          };
+          const zipped = zipSync(zipObj, { level: 6 });
+          return new File([zipped], file.name.replace(/\.slp$/i, ".zip"), {
+            type: "application/zip",
+          });
+        })
+      );
+      onFileUpload(zippedFiles);
     }
   };
 
@@ -165,7 +190,9 @@ export default function FileUpload({
           </button>
           <button
             onClick={() => setSelectedFiles([])}
-            className="mt-4 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded"
+            className={`mt-4 mr-4 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             disabled={loading}
           >
             Clear Selection
