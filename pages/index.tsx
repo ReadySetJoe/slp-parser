@@ -6,17 +6,36 @@ import ReplayDataSummary from "@/components/ReplayDataSummary";
 import CharacterBreakdown from "@/components/CharacterBreakdown";
 import MatchupAnalysis from "@/components/MatchupAnalysis";
 
+const SAMPLE_SLP_FILES = [
+  "Game_20250702T121017.slp",
+  "Game_20250702T121348.slp",
+  "Game_20250702T121738.slp",
+  "Game_20250702T122215.slp",
+  "Game_20250702T122520.slp",
+  "Game_20250702T122749.slp",
+  "Game_20250702T123031.slp",
+  "Game_20250702T123346.slp",
+  "Game_20250702T123744.slp",
+  "Game_20250702T124036.slp",
+];
+
 export default function Home() {
   const [replayDataList, setReplayDataList] = useState<ReplayData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("summary");
+  const [progress, setProgress] = useState<{ current: number; total: number }>({
+    current: 0,
+    total: 0,
+  });
 
   const handleFileUpload = async (files: File[]) => {
     setLoading(true);
     setError("");
+    setProgress({ current: 0, total: files.length });
     const newReplayDataList: ReplayData[] = [];
+    let successCount = 0;
     try {
       for (const file of files) {
         const formData = new FormData();
@@ -29,10 +48,11 @@ export default function Home() {
           throw new Error(`Failed to parse replay file: ${file.name}`);
         }
         const data = await response.json();
-        console.log("data", data);
         newReplayDataList.push(data);
+        successCount++;
+        setProgress((prev) => ({ ...prev, current: successCount }));
       }
-      setReplayDataList(prev => [...prev, ...newReplayDataList]);
+      setReplayDataList((prev) => [...prev, ...newReplayDataList]);
     } catch (err) {
       console.error("Error parsing replay files:", err);
       setError(
@@ -40,14 +60,71 @@ export default function Home() {
       );
     } finally {
       setLoading(false);
+      setProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const handleLoadSampleData = async () => {
+    setLoading(true);
+    setError("");
+    const filesToLoad = SAMPLE_SLP_FILES.slice(0, 10);
+    setProgress({ current: 0, total: filesToLoad.length });
+    const newReplayDataList: ReplayData[] = [];
+    let successCount = 0;
+    try {
+      for (const fileName of filesToLoad) {
+        const res = await fetch(`/assets/slp-demo-data/${fileName}`);
+        if (!res.ok) throw new Error(`Failed to fetch ${fileName}`);
+        const blob = await res.blob();
+        const file = new File([blob], fileName, {
+          type: "application/octet-stream",
+        });
+
+        const formData = new FormData();
+        formData.append("replayFile", file);
+
+        const response = await fetch("/api/parse-replay", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error(`Failed to parse ${fileName}`);
+        const data = await response.json();
+        newReplayDataList.push(data);
+        successCount++;
+        setProgress((prev) => ({ ...prev, current: successCount }));
+      }
+      setReplayDataList((prev) => [...prev, ...newReplayDataList]);
+      // set the selected player to whichever player is most frequent
+      const playerCounts: Record<string, number> = {};
+      newReplayDataList.forEach((replay) => {
+        const players = [
+          replay.metadata.players[0],
+          replay.metadata.players[1],
+        ];
+        players.forEach((player) => {
+          playerCounts[player.names.code] =
+            (playerCounts[player.names.code] || 0) + 1;
+        });
+      });
+      const mostFrequentPlayer = Object.entries(playerCounts).reduce(
+        (max, curr) => (curr[1] > max[1] ? curr : max),
+        ["", 0]
+      )[0];
+      setSelectedPlayer(mostFrequentPlayer || null);
+    } catch (err) {
+      setError("Error loading sample data.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setProgress({ current: 0, total: 0 });
     }
   };
 
   // Count player occurrences
   const playerFrequency: Record<string, number> = {};
-  replayDataList.forEach(replay => {
+  replayDataList.forEach((replay) => {
     const players = [replay.metadata.players[0], replay.metadata.players[1]];
-    players.forEach(player => {
+    players.forEach((player) => {
       playerFrequency[player.names.code] =
         (playerFrequency[player.names.code] || 0) + 1;
     });
@@ -63,8 +140,6 @@ export default function Home() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case "summary":
-        return <ReplayDataSummary replayDataList={replayDataList} />;
       case "characters":
         return (
           <CharacterBreakdown
@@ -87,8 +162,14 @@ export default function Home() {
             ))}
           </div>
         );
+      case "summary":
       default:
-        return <ReplayDataSummary replayDataList={replayDataList} />;
+        return (
+          <ReplayDataSummary
+            selectedPlayer={selectedPlayer}
+            replayDataList={replayDataList}
+          />
+        );
     }
   };
 
@@ -109,11 +190,36 @@ export default function Home() {
 
         {replayDataList.length === 0 ? (
           <div className="w-full max-w-3xl bg-white rounded-lg shadow-md p-6">
+            <button
+              onClick={handleLoadSampleData}
+              className="mb-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md"
+              disabled={loading}
+            >
+              {loading ? "Loading Sample Data..." : "Load Sample Data"}
+            </button>
             <FileUpload
               onFileUpload={handleFileUpload}
               loading={loading}
               error={error}
             />
+            {/* Progress Bar */}
+            {progress.total > 0 && (
+              <div className="w-full max-w-3xl my-4">
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-4 transition-all duration-300"
+                    style={{
+                      width: `${(progress.current / progress.total) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+                <div className="text-center text-sm text-gray-700 mt-1">
+                  {`Analyzed ${progress.current} of ${progress.total} file${
+                    progress.total > 1 ? "s" : ""
+                  }...`}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="w-full max-w-6xl">
@@ -203,7 +309,18 @@ export default function Home() {
       </main>
 
       <footer className="w-full text-center py-4 text-gray-500 text-sm">
-        <p>Slippi Replay Analyzer - Analyze and improve your Smash gameplay</p>
+        <p>Slippi Replay Analyzer - Analyze, improve, repeat.</p>
+        <p className="mt-1">
+          Created by Joe Powers:{" "}
+          <a
+            href="https://github.com/ReadySetJoe/slp-parser"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline"
+          >
+            GitHub Repo
+          </a>
+        </p>
       </footer>
     </div>
   );

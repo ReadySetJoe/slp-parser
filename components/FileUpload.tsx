@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+const MAX_FILES = 100;
 interface FileUploadProps {
   onFileUpload: (files: File[]) => void;
   loading: boolean;
@@ -32,12 +33,21 @@ export default function FileUpload({
     setDragActive(false);
 
     if (e.dataTransfer.files) {
-      const validFiles = Array.from(e.dataTransfer.files).filter(file =>
+      const validFiles = Array.from(e.dataTransfer.files).filter((file) =>
         file.name.endsWith(".slp")
       );
 
       if (validFiles.length > 0) {
-        setSelectedFiles(prevFiles => [...prevFiles, ...validFiles]);
+        setSelectedFiles((prevFiles) => {
+          const combined = [...prevFiles, ...validFiles];
+          if (combined.length > MAX_FILES) {
+            alert(
+              `You can upload a maximum of ${MAX_FILES} files. Only the first ${MAX_FILES} will be used.`
+            );
+            return combined.slice(0, MAX_FILES);
+          }
+          return combined;
+        });
       } else {
         alert("Please upload .slp files only");
       }
@@ -46,12 +56,19 @@ export default function FileUpload({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const validFiles = Array.from(e.target.files).filter(file =>
+      const validFiles = Array.from(e.target.files).filter((file) =>
         file.name.endsWith(".slp")
       );
-
       if (validFiles.length > 0) {
-        setSelectedFiles(prevFiles => [...prevFiles, ...validFiles]);
+        setSelectedFiles((prevFiles) => {
+          const combined = [...prevFiles, ...validFiles];
+          if (combined.length > MAX_FILES) {
+            alert(
+              `You can upload a maximum of ${MAX_FILES} files. Only the first ${MAX_FILES} will be used.`
+            );
+          }
+          return combined.slice(0, MAX_FILES);
+        });
       } else {
         alert("Please upload .slp files only");
         if (fileInputRef.current) {
@@ -123,19 +140,35 @@ export default function FileUpload({
       {selectedFiles.length > 0 && (
         <div className="mb-4">
           <p className="text-sm text-gray-600">Selected files:</p>
-          <ul className="text-sm text-gray-600">
-            {selectedFiles.map((file, index) => (
-              <li key={index} className="font-semibold">
+          <p className="text-sm text-gray-600">
+            {selectedFiles.slice(0, 3).map((file, index) => (
+              <span key={index} className="font-semibold">
                 {file.name}
-              </li>
+                {index < Math.min(selectedFiles.length, 3) - 1 ? ", " : ""}
+              </span>
             ))}
-          </ul>
+            {selectedFiles.length > 3 && (
+              <span className="text-gray-500">
+                {" "}
+                and {selectedFiles.length - 3} more
+              </span>
+            )}
+          </p>
           <button
             onClick={handleSubmit}
-            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+            className={`mt-4 mr-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             disabled={loading}
           >
             {loading ? "Analyzing..." : "Analyze Replays"}
+          </button>
+          <button
+            onClick={() => setSelectedFiles([])}
+            className="mt-4 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded"
+            disabled={loading}
+          >
+            Clear Selection
           </button>
         </div>
       )}

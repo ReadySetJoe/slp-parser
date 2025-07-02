@@ -71,10 +71,11 @@ const calculateMedian = (data: number[]) => {
 
 const ReplayDataSummary = ({
   replayDataList,
+  selectedPlayer,
 }: {
   replayDataList: ReplayData[];
+  selectedPlayer: string | null;
 }) => {
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [xAxis, setXAxis] = useState<StatKey>();
   const [yAxis, setYAxis] = useState<StatKey>();
   const [chartData, setChartData] = useState<{
@@ -112,26 +113,22 @@ const ReplayDataSummary = ({
 
   // Count player occurrences
   const playerFrequency: Record<string, number> = {};
-  replayDataList.forEach(replay => {
+  replayDataList.forEach((replay) => {
     const players = [replay.metadata.players[0], replay.metadata.players[1]];
-    players.forEach(player => {
+    players.forEach((player) => {
       playerFrequency[player.names.code] =
         (playerFrequency[player.names.code] || 0) + 1;
     });
   });
-
-  const sortedPlayers = Object.entries(playerFrequency).sort(
-    (a, b) => b[1] - a[1]
-  );
 
   useEffect(() => {
     if (!xAxis || !yAxis || !replayDataList.length) return;
 
     // Filter data based on selected player
     const filteredData = selectedPlayer
-      ? replayDataList.filter(replay =>
+      ? replayDataList.filter((replay) =>
           [replay.metadata.players[0], replay.metadata.players[1]]
-            .map(p => p.names.code)
+            .map((p) => p.names.code)
             .includes(selectedPlayer)
         )
       : replayDataList;
@@ -140,16 +137,16 @@ const ReplayDataSummary = ({
     const winData: { x: number; y: number }[] = [];
     const lossData: { x: number; y: number }[] = [];
 
-    filteredData.forEach(replay => {
+    filteredData.forEach((replay) => {
       const playerData = replay.stats.overall;
       const stocks = replay.stats.stocks;
       const winnerIndex = stocks[stocks.length - 1].playerIndex;
-      const winner = playerData.find(p => p.playerIndex === winnerIndex);
-      const loser = playerData.find(p => p.playerIndex !== winnerIndex);
+      const winner = playerData.find((p) => p.playerIndex === winnerIndex);
+      const loser = playerData.find((p) => p.playerIndex !== winnerIndex);
       const selectedPlayerIndex = [
         replay.metadata.players[0],
         replay.metadata.players[1],
-      ].findIndex(p => p.names.code === selectedPlayer);
+      ].findIndex((p) => p.names.code === selectedPlayer);
 
       // Handle winner data
       if (
@@ -225,24 +222,28 @@ const ReplayDataSummary = ({
         wins: {
           count: winData.length,
           xAvg:
-            winData.length > 0 ? calculateAverage(winData.map(d => d.x)) : 0,
+            winData.length > 0 ? calculateAverage(winData.map((d) => d.x)) : 0,
           yAvg:
-            winData.length > 0 ? calculateAverage(winData.map(d => d.y)) : 0,
+            winData.length > 0 ? calculateAverage(winData.map((d) => d.y)) : 0,
           xMedian:
-            winData.length > 0 ? calculateMedian(winData.map(d => d.x)) : 0,
+            winData.length > 0 ? calculateMedian(winData.map((d) => d.x)) : 0,
           yMedian:
-            winData.length > 0 ? calculateMedian(winData.map(d => d.y)) : 0,
+            winData.length > 0 ? calculateMedian(winData.map((d) => d.y)) : 0,
         },
         losses: {
           count: lossData.length,
           xAvg:
-            lossData.length > 0 ? calculateAverage(lossData.map(d => d.x)) : 0,
+            lossData.length > 0
+              ? calculateAverage(lossData.map((d) => d.x))
+              : 0,
           yAvg:
-            lossData.length > 0 ? calculateAverage(lossData.map(d => d.y)) : 0,
+            lossData.length > 0
+              ? calculateAverage(lossData.map((d) => d.y))
+              : 0,
           xMedian:
-            lossData.length > 0 ? calculateMedian(lossData.map(d => d.x)) : 0,
+            lossData.length > 0 ? calculateMedian(lossData.map((d) => d.x)) : 0,
           yMedian:
-            lossData.length > 0 ? calculateMedian(lossData.map(d => d.y)) : 0,
+            lossData.length > 0 ? calculateMedian(lossData.map((d) => d.y)) : 0,
         },
       });
     } else {
@@ -276,7 +277,7 @@ const ReplayDataSummary = ({
       },
       tooltip: {
         callbacks: {
-          label: context => {
+          label: (context) => {
             const label = context.dataset.label || "";
             const xValue = context.parsed.x.toFixed(2);
             const yValue = context.parsed.y.toFixed(2);
@@ -303,10 +304,6 @@ const ReplayDataSummary = ({
     maintainAspectRatio: false,
   };
 
-  const handlePlayerChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedPlayer(event.target.value);
-  };
-
   const handleXAxisChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setXAxis(event.target.value as StatKey);
   };
@@ -322,24 +319,6 @@ const ReplayDataSummary = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div className="mb-4">
           <label className="block text-sm font-medium mb-1">
-            Select Player:
-            <select
-              onChange={handlePlayerChange}
-              value={selectedPlayer || ""}
-              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
-            >
-              <option value="">All Players</option>
-              {sortedPlayers.map(([player, count]) => (
-                <option key={player} value={player}>
-                  {player} - {count} games
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">
             X-Axis:
             <select
               onChange={handleXAxisChange}
@@ -349,8 +328,8 @@ const ReplayDataSummary = ({
               <option value="">Select X-Axis</option>
               {replayDataList.length > 0 &&
                 (Object.keys(replayDataList[0].stats.overall[0]) as StatKey[])
-                  .filter(k => k in axisKeyToLabel)
-                  .map(key => (
+                  .filter((k) => k in axisKeyToLabel)
+                  .map((key) => (
                     <option key={key} value={key}>
                       {axisKeyToLabel[key as StatKey]}
                     </option>
@@ -370,8 +349,8 @@ const ReplayDataSummary = ({
               <option value="">Select Y-Axis</option>
               {replayDataList.length > 0 &&
                 Object.keys(replayDataList[0].stats.overall[0])
-                  .filter(k => k in axisKeyToLabel)
-                  .map(key => (
+                  .filter((k) => k in axisKeyToLabel)
+                  .map((key) => (
                     <option key={key} value={key}>
                       {axisKeyToLabel[key as StatKey]}
                     </option>
